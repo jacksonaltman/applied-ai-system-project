@@ -6,65 +6,62 @@ classDiagram
         HIGH
     }
 
-    class Category {
+    class Frequency {
         <<enumeration>>
-        FEEDING
-        WALK
-        MEDICATION
-        GROOMING
-        PLAY
-        OTHER
+        ONCE
+        DAILY
+        WEEKLY
     }
 
-    class Owner {
-        +String name
-        +int available_time
-        +List~Pet~ pets
-        +List~Task~ tasks
-        +add_pet(pet)
-        +remove_pet(pet)
-        +add_task(task)
-        +remove_task(task)
+    class Task {
+        +String description
+        +datetime time
+        +int duration
+        +Frequency frequency
+        +Priority priority
+        +bool completed
+        +String pet_name
+        +end_time()
+        +mark_complete()
     }
 
     class Pet {
         +String id
         +String name
         +String breed
+        +List~Task~ tasks
+        +add_task(task)
+        +remove_task(task)
     }
 
-    class Task {
+    class Owner {
         +String name
-        +Category category
-        +int duration
-        +Priority priority
-        +Pet pet
+        +int available_time
+        +List~Pet~ pets
+        +add_pet(pet)
+        +remove_pet(pet)
+        +get_pet(name)
+        +get_all_tasks()
     }
 
-    class ScheduledTask {
-        +Task task
-        +int start_minute
-        +end_minute()
-    }
-
-    class Plan {
+    class Scheduler {
         +Owner owner
-        +int time_limit
-        +List~ScheduledTask~ scheduled
+        +List~Task~ scheduled
         +List~Task~ skipped
         +List~String~ reasoning
-        +effective_time_limit()
+        +get_all_tasks()
+        +pending_tasks()
+        +sort_by_time()
+        +filter_tasks()
+        +complete_task(task)
+        +find_conflicts()
         +generate_schedule()
         +display_plan()
         +explain_reasoning()
     }
 
     Owner "1" -- "0..*" Pet : owns
-    Owner "1" -- "0..*" Task : manages
-    Task "0..*" -- "1" Pet : is for
-    Task --> Category
+    Pet "1" -- "0..*" Task : has
+    Scheduler "1" --> "1" Owner : reads get_all_tasks()
+    Task --> Frequency
     Task --> Priority
-    Plan "1" -- "1" Owner : uses constraints of
-    Plan "1" -- "0..*" ScheduledTask : schedules
-    Plan "1" -- "0..*" Task : skips
-    ScheduledTask "1" -- "1" Task : wraps

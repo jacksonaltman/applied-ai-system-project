@@ -47,12 +47,32 @@ pip install -r requirements.txt
 Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+Today's Schedule for Jackson (90 min available)
+==================================================
+07:30-08:00  Morning walk (Rex)
+08:00-08:15  Breakfast (Mia)
+18:30-18:50  Play session (Mia)
+
+Reasoning
+--------------------------------------------------
+Scheduled Morning walk (Rex): HIGH priority, 30 min, 60 min left.
+Scheduled Breakfast (Mia): HIGH priority, 15 min, 45 min left.
+Scheduled Play session (Mia): MEDIUM priority, 20 min, 25 min left.
+Skipped Grooming (Rex): needs 45 min, only 25 left.
 ```
+
+## Implementation summary
+
+So far I've built the backend logic in `pawpal_system.py` and tested it from the terminal with `main.py`. The Streamlit UI isn't connected yet.
+
+There are four main classes:
+
+- **Task**: one activity, like a walk or a feeding. It stores a description, start time, duration, how often it repeats (once, daily, weekly), a priority, and whether it's done. When you complete a daily or weekly task, `mark_complete()` hands back the next one.
+- **Pet**: a name and breed plus its own list of tasks.
+- **Owner**: has a list of pets and how many minutes they have free in a day. `get_all_tasks()` collects every pet's tasks into one list.
+- **Scheduler**: the part that makes the plan. It gets tasks through `owner.get_all_tasks()` instead of looking at one pet, so it can plan for all of them at once. It sorts and filters tasks, flags overlapping times, and builds the day's schedule by taking the highest priority tasks first until the owner runs out of time. Anything that doesn't fit gets skipped, and it keeps a note of why.
+
+The Owner has Pets, the Pets have Tasks, and the Scheduler reads all of those tasks through the Owner and decides what fits into the day.
 
 ## 🧪 Testing PawPal+
 
