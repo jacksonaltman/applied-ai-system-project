@@ -1,0 +1,73 @@
+classDiagram
+    class Priority {
+        <<enumeration>>
+        LOW = 1
+        MEDIUM = 2
+        HIGH = 3
+    }
+
+    class Frequency {
+        <<enumeration>>
+        ONCE
+        DAILY
+        WEEKLY
+    }
+
+    class Task {
+        +String description
+        +datetime time
+        +int duration = 15
+        +Frequency frequency = ONCE
+        +Priority priority = MEDIUM
+        +bool completed = false
+        +String pet_name
+        +__post_init__()
+        +end_time() datetime
+        +mark_complete(today) Task|None
+    }
+
+    class Pet {
+        +String id
+        +String name
+        +String breed
+        +List~Task~ tasks
+        +add_task(task)
+        +remove_task(task)
+    }
+
+    class Owner {
+        +String name
+        +int available_time
+        +List~Pet~ pets
+        +__post_init__()
+        +add_pet(pet)
+        +remove_pet(pet)
+        +get_pet(name) Pet|None
+        +get_all_tasks() List~Task~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +List~Task~ scheduled
+        +List~Task~ skipped
+        +List~String~ reasoning
+        +get_all_tasks() List~Task~
+        +pending_tasks() List~Task~
+        +sort_by_time(tasks) List~Task~
+        +filter_tasks(pet_name, completed) List~Task~
+        +complete_task(task) Task|None
+        +find_conflicts(tasks) List~Tuple~
+        +conflict_warnings(tasks) List~String~
+        +generate_schedule(day) List~Task~
+        +display_plan() String
+        +explain_reasoning() String
+    }
+
+    Owner "1" *-- "0..*" Pet : owns
+    Pet "1" *-- "0..*" Task : has (add_task sets pet_name)
+    Scheduler "1" --> "1" Owner : reads get_all_tasks()
+    Scheduler ..> Task : sorts, filters, checks conflicts, schedules
+    Scheduler ..> Pet : complete_task adds the next occurrence via get_pet(pet_name)
+    Task ..> Task : mark_complete() creates next daily/weekly Task
+    Task --> Frequency
+    Task --> Priority

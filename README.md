@@ -22,6 +22,17 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+- **Multi-pet task tracking** — an owner can have several pets, each with its own tasks (description, start time, duration, priority, repeat frequency). The scheduler reads every pet's tasks at once.
+- **Sorting by time** — tasks are ordered chronologically (date and time), with higher priority first when two tasks start together.
+- **Filtering** — view tasks by pet (case-insensitive), by status (pending or completed), or both.
+- **Priority-based daily schedule** — pending tasks for the chosen day are taken highest priority first (then earlier start, then shorter duration) until the owner's available minutes run out. Anything that doesn't fit is skipped and listed.
+- **Conflict warnings** — every pair of overlapping pending tasks is flagged, whether for the same pet or different pets. Back-to-back tasks are not conflicts. Conflicts are warned about, never silently resolved or raised as errors.
+- **Daily and weekly recurrence** — completing a daily or weekly task automatically creates the next occurrence (+1 day or +1 week, same time of day). Completing a task twice never creates a duplicate.
+- **Explained plans** — every scheduled or skipped task comes with a plain-language reason.
+- **Input validation** — durations must be positive and available time can't be negative.
+
 ## Getting started
 
 ### Setup
@@ -40,7 +51,7 @@ pip install -r requirements.txt
 4. Implement scheduling logic in small increments.
 5. Add tests to verify key behaviors.
 6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+7. Refine UML so it matches what you actually built.  The final diagram is in `diagrams/uml_final.mmd`.
 
 ## 🖥️ Sample Output
 
@@ -63,7 +74,7 @@ Skipped Grooming (Rex): needs 45 min, only 25 left.
 
 ## Implementation summary
 
-So far I've built the backend logic in `pawpal_system.py` and tested it from the terminal with `main.py`. The Streamlit UI isn't connected yet.
+The backend logic lives in `pawpal_system.py`, is demonstrated from the terminal with `main.py`, and is used by the Streamlit UI in `app.py`.
 
 There are four main classes:
 
@@ -109,27 +120,103 @@ tests/test_pawpal.py ......................                              [100%]
 ============================== 22 passed in 0.01s ==============================
 ```
 
-**Confidence Level:** — Pretty high. All 22 tests pass and cover the main behaviors and edge cases. However, the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
-
-## 📐 Smarter Scheduling
-
-> Fill in once you've implemented scheduling logic.
-
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+**Confidence Level: ⭐⭐⭐⭐ (4/5)** — All 22 tests pass and cover the main behaviors and edge cases. However, the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Running the app
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+```bash
+streamlit run app.py   # web UI
+python main.py         # terminal demo of the same scheduler
+```
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+### What you can do in the UI
+
+- **Owner** — set your name and how many minutes you have available today.
+- **Pets** — add pets (name and breed); a table shows each pet and its task count.
+- **Tasks** — add a task for a pet with a start time, duration, repeat frequency (once, daily, weekly) and priority.
+- **All tasks** — see every task sorted by time, and filter by pet and/or status.
+- **Mark complete** — finish a task; daily and weekly tasks automatically get a next occurrence.
+- **Generate schedule** — build today's plan, with skipped tasks and the reasoning behind it.
+
+### Example workflow
+
+1. Set the owner to "Jordan" with 90 minutes available.
+2. Add two pets, Rex (Lab) and Mia (Tabby).
+3. Add "Morning walk" (07:30, 30 min, high, daily) for Rex and "Vet call" (07:30, 20 min, medium) for Rex.
+4. A yellow conflict warning appears immediately: the walk and the vet call overlap, with a tip to move the call to 08:00 or later.
+5. Add a few more tasks (breakfast and a play session for Mia, grooming for Rex). The task table stays sorted by time, and the pet filter narrows it to one animal.
+6. Mark "Morning walk" complete. A message says its next daily occurrence is scheduled for tomorrow at 07:30.
+7. Click **Generate schedule** to see today's plan, a "used X of 90 minutes" summary, any skipped tasks, and the "Why this plan?" explanation.
+
+### Scheduler behaviors shown
+
+- **Sorting** — tasks added out of order are displayed chronologically.
+- **Filtering** — by pet and by completed or pending.
+- **Conflict warnings** — overlapping tasks are flagged for the same pet and across pets, before and after generating a plan.
+- **Recurrence** — completing a recurring task queues the next one.
+- **Skipping** — a task that no longer fits in the available time is skipped and explained.
+
+### Sample CLI output (`python main.py`)
+
+```
+
+As added (unsorted)
+--------------------------------------------------
+[ ] Mon 17:00  Grooming (Rex)
+[ ] Mon 07:30  Morning walk (Rex)
+[ ] Mon 07:30  Vet call (Rex)
+[ ] Mon 18:40  Training (Rex)
+[ ] Mon 18:30  Play session (Mia)
+[x] Mon 08:00  Breakfast (Mia)
+[ ] Tue 08:00  Breakfast (Mia)
+
+Sorted by time
+--------------------------------------------------
+[ ] Mon 07:30  Morning walk (Rex)
+[ ] Mon 07:30  Vet call (Rex)
+[x] Mon 08:00  Breakfast (Mia)
+[ ] Mon 17:00  Grooming (Rex)
+[ ] Mon 18:30  Play session (Mia)
+[ ] Mon 18:40  Training (Rex)
+[ ] Tue 08:00  Breakfast (Mia)
+
+Rex's tasks
+--------------------------------------------------
+[ ] Mon 17:00  Grooming (Rex)
+[ ] Mon 07:30  Morning walk (Rex)
+[ ] Mon 07:30  Vet call (Rex)
+[ ] Mon 18:40  Training (Rex)
+
+Completed tasks
+--------------------------------------------------
+[x] Mon 08:00  Breakfast (Mia)
+
+Pending tasks for Mia
+--------------------------------------------------
+[ ] Mon 18:30  Play session (Mia)
+[ ] Tue 08:00  Breakfast (Mia)
+
+Conflict check (all pending tasks)
+--------------------------------------------------
+Warning (same pet): Morning walk (Rex, 07:30-08:00) overlaps Vet call (Rex, 07:30-07:50).
+Warning (different pets): Play session (Mia, 18:30-18:50) overlaps Training (Rex, 18:40-19:00).
+
+Today's Schedule for Jackson (90 min available)
+==================================================
+07:30-08:00  Morning walk (Rex)
+07:30-07:50  Vet call (Rex)
+18:30-18:50  Play session (Mia)
+18:40-19:00  Training (Rex)
+
+Reasoning
+--------------------------------------------------
+Scheduled Morning walk (Rex): HIGH priority, 30 min, 60 min left.
+Scheduled Vet call (Rex): MEDIUM priority, 20 min, 40 min left.
+Scheduled Play session (Mia): MEDIUM priority, 20 min, 20 min left.
+Skipped Grooming (Rex): needs 45 min, only 20 left.
+Scheduled Training (Rex): LOW priority, 20 min, 0 min left.
+Warning (same pet): Morning walk (Rex, 07:30-08:00) overlaps Vet call (Rex, 07:30-07:50).
+Warning (different pets): Play session (Mia, 18:30-18:50) overlaps Training (Rex, 18:40-19:00).
+```
