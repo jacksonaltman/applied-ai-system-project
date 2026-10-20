@@ -86,18 +86,30 @@ Algorithms added in `pawpal_system.py`, demonstrated by `main.py`:
 ## 🧪 Testing PawPal+
 
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
+
+The suite in `tests/test_pawpal.py` (22 tests) covers:
+
+- **Sorting** — chronological order across pets, priority tie-breaks, multi-day ordering, and an empty task list.
+- **Recurrence** — daily tasks create a next-day task, weekly tasks recur a week later, one-off tasks don't recur, completing twice creates no duplicate, late completion recurs from today, and `Scheduler.complete_task` adds the new task to the right pet.
+- **Conflict detection** — same-time tasks (same pet and different pets), partial overlaps, back-to-back tasks (not a conflict), and completed tasks being ignored.
+- **Edge cases** — pets with no tasks, invalid durations, filtering by pet and status, and tasks skipped when they don't fit the available time.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/jacksonaltman/Desktop/ai110-module2show-pawpal-starter
+collected 22 items
+
+tests/test_pawpal.py ......................                              [100%]
+
+============================== 22 passed in 0.01s ==============================
 ```
+
+**Confidence Level: ⭐⭐⭐⭐ (4/5)** — All 22 tests pass and cover the main behaviors and edge cases. I stopped at four stars because the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
 
 ## 📐 Smarter Scheduling
 
