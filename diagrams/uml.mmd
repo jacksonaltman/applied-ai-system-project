@@ -1,15 +1,70 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
-
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Category {
+        <<enumeration>>
+        FEEDING
+        WALK
+        MEDICATION
+        GROOMING
+        PLAY
+        OTHER
     }
 
-    ClassName --> AnotherClass : relationship
+    class Owner {
+        +String name
+        +int available_time
+        +List~Pet~ pets
+        +List~Task~ tasks
+        +add_pet(pet)
+        +remove_pet(pet)
+        +add_task(task)
+        +remove_task(task)
+    }
+
+    class Pet {
+        +String id
+        +String name
+        +String breed
+    }
+
+    class Task {
+        +String name
+        +Category category
+        +int duration
+        +Priority priority
+        +Pet pet
+    }
+
+    class ScheduledTask {
+        +Task task
+        +int start_minute
+        +end_minute()
+    }
+
+    class Plan {
+        +Owner owner
+        +int time_limit
+        +List~ScheduledTask~ scheduled
+        +List~Task~ skipped
+        +List~String~ reasoning
+        +effective_time_limit()
+        +generate_schedule()
+        +display_plan()
+        +explain_reasoning()
+    }
+
+    Owner "1" -- "0..*" Pet : owns
+    Owner "1" -- "0..*" Task : manages
+    Task "0..*" -- "1" Pet : is for
+    Task --> Category
+    Task --> Priority
+    Plan "1" -- "1" Owner : uses constraints of
+    Plan "1" -- "0..*" ScheduledTask : schedules
+    Plan "1" -- "0..*" Task : skips
+    ScheduledTask "1" -- "1" Task : wraps
