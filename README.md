@@ -74,6 +74,15 @@ There are four main classes:
 
 The Owner has Pets, the Pets have Tasks, and the Scheduler reads all of those tasks through the Owner and decides what fits into the day.
 
+## Smarter Scheduling
+
+Algorithms added in `pawpal_system.py`, demonstrated by `main.py`:
+
+- **Sorting by time** — `Scheduler.sort_by_time()` orders tasks chronologically with `sorted(key=lambda t: (t.time, -t.priority))`, so higher priority wins ties.
+- **Filtering** — `Scheduler.filter_tasks(pet_name=None, completed=None)` filters by pet (case-insensitive) and/or completion status; both filters combine. `Scheduler.pending_tasks()` is a shortcut for not-completed tasks.
+- **Conflict detection** — `Scheduler.find_conflicts()` sweeps the time-sorted pending tasks and returns every overlapping pair (same pet or different pets), stopping early once no later task can overlap. `Scheduler.conflict_warnings()` turns those pairs into warning strings instead of raising, and `generate_schedule()` appends them to the reasoning. Overlaps are warned about, not automatically resolved.
+- **Recurring tasks** — `Task.mark_complete()` returns the next daily or weekly occurrence, due at max(task date, today) plus a `timedelta` of 1 day or 1 week, keeping the time of day. `Scheduler.complete_task()` adds it to the same pet. Completing an already-completed task creates no duplicate.
+
 ## 🧪 Testing PawPal+
 
 ```bash

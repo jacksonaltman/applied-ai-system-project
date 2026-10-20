@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from enum import Enum, IntEnum
+from itertools import islice
 from typing import List, Optional, Tuple
 from uuid import uuid4
 
@@ -47,15 +48,26 @@ class Task:
         """When the task finishes."""
         return self.time + timedelta(minutes=self.duration)
 
-    def mark_complete(self) -> Optional[Task]:
-        """Mark done. Returns the next occurrence for daily/weekly tasks, else None."""
+    def mark_complete(self, today: Optional[date] = None) -> Optional[Task]:
+        """Mark done. Returns the next occurrence for daily/weekly tasks, else None.
+
+        The next due date is the later of the task's own date and today, plus
+        one timedelta step (1 day or 1 week), keeping the original time of day.
+        A task completed on time or late therefore recurs at today + step; one
+        completed early recurs at its due date + step. Completing a task that
+        is already complete returns None, so no duplicate is created.
+        """
+        if self.completed:
+            return None
         self.completed = True
         step = _RECURRENCE.get(self.frequency)
         if step is None:
             return None
+        base = max(self.time.date(), today or date.today())
+        next_time = datetime.combine(base, self.time.time()) + step
         return Task(
             description=self.description,
-            time=self.time + step,
+            time=next_time,
             duration=self.duration,
             frequency=self.frequency,
             priority=self.priority,
@@ -130,17 +142,30 @@ class Scheduler:
         return [t for t in self.get_all_tasks() if not t.completed]
 
     def sort_by_time(self, tasks: Optional[List[Task]] = None) -> List[Task]:
-        """Sort the given tasks (default: all) by start time."""
+        """Sort the given tasks (default: all) by start time, then priority.
+
+        Task.time is a datetime, so it compares chronologically. If times were
+        "HH:MM" strings, key=lambda t: t.time would also work, because
+        zero-padded 24-hour strings sort lexically in time order.
+        """
         tasks = self.get_all_tasks() if tasks is None else tasks
-        return sorted(tasks, key=lambda t: t.time)
+        return sorted(tasks, key=lambda t: (t.time, -t.priority))
 
     def filter_tasks(
         self, pet_name: Optional[str] = None, completed: Optional[bool] = None
     ) -> List[Task]:
-        """Filter all tasks by pet name and/or completion status."""
+        """Filter all tasks by pet name and/or completion status.
+
+        Args:
+            pet_name: Keep only this pet's tasks (case-insensitive). None skips this filter.
+            completed: True for done tasks, False for pending. None skips this filter.
+
+        Returns:
+            Matching tasks in their original order; both filters combine with AND.
+        """
         tasks = self.get_all_tasks()
         if pet_name is not None:
-            tasks = [t for t in tasks if t.pet_name == pet_name]
+            tasks = [t for t in tasks if t.pet_name.lower() == pet_name.lower()]
         if completed is not None:
             tasks = [t for t in tasks if t.completed == completed]
         return tasks
@@ -148,7 +173,12 @@ class Scheduler:
     # --- managing ---
 
     def complete_task(self, task: Task) -> Optional[Task]:
-        """Complete a task; recurring tasks are re-added to the same pet."""
+        """Complete a task and queue its next occurrence if it recurs.
+
+        Delegates the date math to Task.mark_complete(). A new daily/weekly task
+        is added to the same pet; returns it, or None for one-off tasks or
+        tasks that were already complete.
+        """
         nxt = task.mark_complete()
         if nxt is not None:
             pet = self.owner.get_pet(task.pet_name)
@@ -157,14 +187,31 @@ class Scheduler:
         return nxt
 
     def find_conflicts(self, tasks: Optional[List[Task]] = None) -> List[Tuple[Task, Task]]:
-        """Pairs of tasks whose time ranges overlap (any pets)."""
+        """Pairs of tasks whose time ranges overlap (same pet or different pets).
+
+        Sweeps the time-sorted list and stops comparing a task as soon as a
+        later one starts at or after its end, since nothing after can overlap.
+        """
         ordered = self.sort_by_time(self.pending_tasks() if tasks is None else tasks)
-        return [
-            (a, b)
-            for i, a in enumerate(ordered)
-            for b in ordered[i + 1:]
-            if b.time < a.end_time
-        ]
+        conflicts = []
+        for i, a in enumerate(ordered):
+            for b in islice(ordered, i + 1, None):  # no list copy
+                if b.time >= a.end_time:
+                    break
+                conflicts.append((a, b))
+        return conflicts
+
+    def conflict_warnings(self, tasks: Optional[List[Task]] = None) -> List[str]:
+        """Human-readable warning per overlapping pair; never raises."""
+        warnings = []
+        for a, b in self.find_conflicts(tasks):
+            scope = "same pet" if a.pet_name == b.pet_name else "different pets"
+            warnings.append(
+                f"Warning ({scope}): {a.description} ({a.pet_name}, "
+                f"{a.time:%H:%M}-{a.end_time:%H:%M}) overlaps "
+                f"{b.description} ({b.pet_name}, {b.time:%H:%M}-{b.end_time:%H:%M})."
+            )
+        return warnings
 
     def generate_schedule(self, day: Optional[date] = None) -> List[Task]:
         """Fit pending tasks (all pets) into owner.available_time.
@@ -195,11 +242,7 @@ class Scheduler:
                 )
 
         self.scheduled = self.sort_by_time(self.scheduled)
-        for a, b in self.find_conflicts(self.scheduled):
-            self.reasoning.append(
-                f"Warning: {a.description} ({a.pet_name}) overlaps "
-                f"{b.description} ({b.pet_name})."
-            )
+        self.reasoning.extend(self.conflict_warnings(self.scheduled))
         return self.scheduled
 
     def display_plan(self) -> str:

@@ -32,7 +32,7 @@ The model needed to add some fields (such as "owner" to Plan class) to implement
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 The scheduler looks at the owner's available time for the day, each task's priority (low, medium, high), each task's duration, and its start time. It also skips tasks that are already completed. It doesn't handle owner preferences yet.
 - How did you decide which constraints mattered most?
-Available time is the hard limit, because the owner can't do more than they have time for. Inside that limit, priority matters most, since a missed medication is a bigger deal than a missed play session. Start time and duration only break ties: earlier tasks go first, then shorter ones.
+Available time is the hard limit, because the owner can't do more than they have time for. Inside that limit, priority matters most, since a missed medication is more important than a missed play session. Start time and duration only break ties: earlier tasks go first, then shorter ones.
 
 **b. Tradeoffs**
 
@@ -90,3 +90,4 @@ I ran `main.py` and checked that the schedule made sense , and I ran pytest to c
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+The AI system tends to overcomplicate.
