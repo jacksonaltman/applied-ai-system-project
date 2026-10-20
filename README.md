@@ -109,7 +109,7 @@ tests/test_pawpal.py ......................                              [100%]
 ============================== 22 passed in 0.01s ==============================
 ```
 
-**Confidence Level: ⭐⭐⭐⭐ (4/5)** — All 22 tests pass and cover the main behaviors and edge cases. I stopped at four stars because the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
+**Confidence Level:** — Pretty high. All 22 tests pass and cover the main behaviors and edge cases. However, the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
 
 ## 📐 Smarter Scheduling
 
