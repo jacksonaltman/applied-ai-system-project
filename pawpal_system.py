@@ -80,6 +80,8 @@ class Pet:
     breed: str
     id: str = field(default_factory=lambda: uuid4().hex)  # names may repeat
     tasks: List[Task] = field(default_factory=list)
+    species: str = "unknown"  # used by the AI retriever, e.g. "dog", "cat"
+    age_years: Optional[float] = None  # used to pick a life stage (young/adult/senior)
 
     def add_task(self, task: Task) -> None:
         """Add a task to this pet and tag it with the pet's name."""
