@@ -1,0 +1,50 @@
+flowchart LR
+    %% ---------- INPUT ----------
+    subgraph INPUT["1. Input"]
+        U["Pet owner (Streamlit UI, app.py)"]
+        PROFILE["Pet profile<br/>species, age, existing tasks"]
+        U --> PROFILE
+    end
+
+    %% ---------- PROCESS ----------
+    subgraph PROCESS["2. Process (AI pipeline)"]
+        direction TB
+        RET["Retriever (retriever.py)<br/>keyword match over knowledge/"]
+        KB[("Knowledge base<br/>knowledge/*.md<br/>pet-care guidance")]
+        AGENT["AI Agent (Gemini API, ai_agent.py)<br/>prompt = pet profile + retrieved docs<br/>returns task suggestions as JSON"]
+        GUARD["Guardrails + logging<br/>validate JSON schema, handle API errors,<br/>log query / docs / output"]
+        SCHED["Scheduler (pawpal_system.py)<br/>sort, filter, conflict detection"]
+
+        KB --> RET
+        RET -->|top-k docs| AGENT
+        AGENT --> GUARD
+        GUARD -->|valid Task objects| SCHED
+        GUARD -.->|invalid or error: fallback, no crash| FALLBACK["Safe fallback<br/>show message, keep existing schedule"]
+    end
+
+    %% ---------- OUTPUT ----------
+    subgraph OUTPUT["3. Output"]
+        PLAN["Proposed schedule<br/>+ conflict warnings<br/>+ cited sources"]
+    end
+
+    %% ---------- CHECKS ----------
+    subgraph CHECKS["Human and automated checks"]
+        direction TB
+        HUMAN{{"HUMAN REVIEW<br/>owner approves, edits, or rejects<br/>each suggested task"}}
+        TESTS["AUTOMATED TESTS<br/>pytest (tests/test_pawpal.py)<br/>scheduler logic + AI output format"]
+        EVAL["EVALUATOR script<br/>same pet profile run N times:<br/>consistency + schema pass rate"]
+    end
+
+    PROFILE --> RET
+    PROFILE --> AGENT
+    SCHED --> PLAN
+    FALLBACK --> PLAN
+    PLAN --> HUMAN
+    HUMAN -->|approved tasks| SAVED[("Owner's saved schedule<br/>Owner / Pet / Task")]
+    HUMAN -.->|rejections and edits: feedback to improve knowledge base| KB
+
+    TESTS -.->|verifies| SCHED
+    TESTS -.->|verifies| GUARD
+    EVAL -.->|measures| AGENT
+    EVAL -.->|measures| RET
+    EVAL -->|report| DEV["Developer reviews results"]

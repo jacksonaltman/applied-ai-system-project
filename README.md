@@ -43,6 +43,30 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Enable AI task suggestions (optional)
+
+The core planner works without any key. To turn on the AI feature, get a Gemini API key and set it before launching:
+
+```bash
+export GEMINI_API_KEY="your-key"      # Windows PowerShell: $env:GEMINI_API_KEY="your-key"
+export GEMINI_MODEL="gemini-3.8-flash"  # optional override
+streamlit run app.py
+```
+
+Without a key, the app shows a notice and hides the AI button; everything else keeps working.
+
+## 🤖 AI feature: RAG task suggestions
+
+System diagram: `diagrams/system_diagram.mmd`.
+
+1. **Retrieve**: `retriever.py` keyword-matches the pet's species, life stage (from age), and breed against the guides in `knowledge/`.
+2. **Generate**: `ai_agent.py` puts the pet profile and the retrieved guides into a Gemini prompt and asks for JSON tasks. The answer is built from the retrieved text, and each task cites its source guide.
+3. **Guardrails**: output is schema-validated (time, duration, enums), must cite a retrieved guide, and is de-duplicated against the pet's existing tasks. Bad items are dropped and logged, bad JSON is retried once, and API failures return a friendly error instead of crashing.
+4. **Human review**: suggestions appear as a checklist with reasons and sources. Nothing is added to the schedule until the owner approves, and the existing conflict detection then runs on the result.
+5. **Logging**: everything goes to the console and `pawpal.log`.
+
+Measure it with `python evaluate.py`: the retrieval hit rate over labeled pet profiles runs offline, and the schema pass rate over live model runs runs when `GEMINI_API_KEY` is set. Automated tests live in `tests/test_ai.py` (no network needed).
+
 ### Suggested workflow
 
 1. Read the scenario carefully and identify requirements and edge cases.
