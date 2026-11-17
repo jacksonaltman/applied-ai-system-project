@@ -1,0 +1,44 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jacksonaltman/applied-ai-system-final
+collecting ... collected 36 items
+
+tests/test_ai.py::test_life_stage_boundaries PASSED                      [  2%]
+tests/test_ai.py::test_retrieves_species_and_stage_match_first PASSED    [  5%]
+tests/test_ai.py::test_unknown_species_falls_back_to_general_doc PASSED  [  8%]
+tests/test_ai.py::test_retrieval_is_deterministic PASSED                 [ 11%]
+tests/test_ai.py::test_parse_accepts_valid_output PASSED                 [ 13%]
+tests/test_ai.py::test_parse_rejects_bad_items_but_keeps_good_ones PASSED [ 16%]
+tests/test_ai.py::test_parse_skips_tasks_the_pet_already_has PASSED      [ 19%]
+tests/test_ai.py::test_parse_raises_on_non_json PASSED                   [ 22%]
+tests/test_ai.py::test_suggest_tasks_happy_path_and_to_task PASSED       [ 25%]
+tests/test_ai.py::test_suggest_tasks_retries_once_on_bad_output PASSED   [ 27%]
+tests/test_ai.py::test_suggest_tasks_reports_error_when_output_never_valid PASSED [ 30%]
+tests/test_ai.py::test_suggest_tasks_never_raises_on_api_failure PASSED  [ 33%]
+tests/test_ai.py::test_prompt_contains_retrieved_docs_and_profile PASSED [ 36%]
+tests/test_ai.py::test_feature_disabled_without_api_key PASSED           [ 38%]
+tests/test_pawpal.py::test_mark_complete_changes_status PASSED           [ 41%]
+tests/test_pawpal.py::test_adding_task_increases_pet_task_count PASSED   [ 44%]
+tests/test_pawpal.py::test_invalid_duration_rejected PASSED              [ 47%]
+tests/test_pawpal.py::test_sort_by_time_is_chronological_across_pets PASSED [ 50%]
+tests/test_pawpal.py::test_sort_by_time_breaks_ties_by_priority PASSED   [ 52%]
+tests/test_pawpal.py::test_sort_by_time_handles_dates_not_just_clock_time PASSED [ 55%]
+tests/test_pawpal.py::test_sort_with_no_tasks_returns_empty_list PASSED  [ 58%]
+tests/test_pawpal.py::test_daily_task_creates_next_day_task PASSED       [ 61%]
+tests/test_pawpal.py::test_weekly_task_creates_task_one_week_later PASSED [ 63%]
+tests/test_pawpal.py::test_one_off_task_does_not_recur PASSED            [ 66%]
+tests/test_pawpal.py::test_completing_twice_does_not_create_duplicate PASSED [ 69%]
+tests/test_pawpal.py::test_late_completion_recurs_from_today PASSED      [ 72%]
+tests/test_pawpal.py::test_scheduler_complete_task_adds_next_to_same_pet PASSED [ 75%]
+tests/test_pawpal.py::test_same_start_time_is_flagged_as_conflict PASSED [ 77%]
+tests/test_pawpal.py::test_same_pet_duplicate_time_produces_warning PASSED [ 80%]
+tests/test_pawpal.py::test_different_pet_conflict_warning_scope PASSED   [ 83%]
+tests/test_pawpal.py::test_partial_overlap_is_a_conflict PASSED          [ 86%]
+tests/test_pawpal.py::test_back_to_back_tasks_do_not_conflict PASSED     [ 88%]
+tests/test_pawpal.py::test_completed_tasks_are_ignored_by_default_conflict_check PASSED [ 91%]
+tests/test_pawpal.py::test_pet_with_no_tasks_yields_empty_results PASSED [ 94%]
+tests/test_pawpal.py::test_filter_by_pet_and_completion PASSED           [ 97%]
+tests/test_pawpal.py::test_generate_schedule_skips_tasks_that_do_not_fit PASSED [100%]
+
+============================== 36 passed in 0.02s ==============================

@@ -1,0 +1,11 @@
+INPUT pet: Biscuit dog labrador 0.5y | existing tasks: ['Evening play']
+RETRIEVED guides: ['dog_young', 'dog_adult', 'dog_senior']
+MODEL returned 7 tasks -> 2 accepted, 5 rejected
+  ACCEPTED  07:00  Morning meal (15 min, daily, high) source=dog_young
+  ACCEPTED  09:30  Potty break (10 min, daily, high) source=dog_young
+
+INPUT: model replies with non-JSON garbage on every attempt
+  -> The AI returned output we couldn't use. Try again.
+
+INPUT: the model API is down
+  -> The AI service is unavailable (network down). Your schedule is unchanged. See pawpal.log.

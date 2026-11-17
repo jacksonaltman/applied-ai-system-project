@@ -85,7 +85,35 @@ Logs go to the console and `pawpal.log`.
 
 **1. Live Gemini suggestion** *(a 6-month-old labrador)*
 
-> ⚠️ Replace this block with output from your own run (it is not filled in because I can't call the API from here). Run the app with a key, add a dog (labrador, 0.5 years), click **Suggest tasks**, and paste the checklist here.
+Review suggestions for Dog and tick the ones you want:
+
+
+07:00 · Morning meal (15 min, daily, high)
+Why: Puppies require 3 meals a day spaced roughly 5-6 hours apart. (source: dog_young)
+
+
+07:30 · Morning walk and play (15 min, daily, medium)
+Why: Puppies need several short walks or play sessions of 10-15 minutes each while avoiding long runs. (source: dog_young)
+
+
+12:30 · Midday meal (15 min, daily, high)
+Why: Feeding 3 meals daily spaced roughly 5-6 hours apart supports consistent puppy growth. (source: dog_young)
+
+
+14:00 · Basic obedience training (10 min, daily, medium)
+Why: Daily training in 5-10 minute sessions helps teach sit, recall, and leash manners. (source: dog_young)
+
+
+18:00 · Evening meal (15 min, daily, high)
+Why: Providing the third scheduled meal of the day fulfills the recommended 3-meal feeding plan. (source: dog_young)
+
+
+18:30 · Evening play session (15 min, daily, medium)
+Why: Short play sessions of 10-15 minutes allow puppies to exercise safely while joints develop. (source: dog_young)
+
+
+19:30 · Socialization and handling practice (10 min, daily, medium)
+Why: Daily 10-minute socialization and gentle handling practice is essential for young puppies. (source: dog_young)
 
 **2. Retrieval picks guides by species and life stage** *(real output, no key needed)*
 
@@ -131,6 +159,84 @@ Retrieval hit rate (top-3)
   PASS  other/axolotl/2y -> expected general, got ['general']
   => 12/12 = 100%
 ```
+
+## Reproducible execution evidence
+
+Everything below was produced by running the command shown, from the repo root, with no API key set (so it is fully reproducible offline). The raw output is saved in [`logs/`](logs/). The live Gemini run is Sample interaction 1 above.
+
+### 1. Run the full test suite
+
+```bash
+python -m pytest -v        # saved to logs/pytest_output.txt
+```
+
+```
+tests/test_ai.py::test_parse_rejects_bad_items_but_keeps_good_ones PASSED
+tests/test_ai.py::test_suggest_tasks_retries_once_on_bad_output PASSED
+tests/test_ai.py::test_suggest_tasks_never_raises_on_api_failure PASSED
+tests/test_ai.py::test_prompt_contains_retrieved_docs_and_profile PASSED
+tests/test_ai.py::test_feature_disabled_without_api_key PASSED
+...
+============================== 36 passed in 0.02s ==============================
+```
+
+### 2. Measure retrieval reliability
+
+```bash
+python evaluate.py         # saved to logs/evaluate_output.txt and evaluation_results.md
+```
+
+```
+Retrieval hit rate (top-3)
+  PASS  dog/labrador/0.5y -> expected dog_young, got ['dog_young', 'dog_adult', 'dog_senior']
+  PASS  cat/siamese/14y -> expected cat_senior, got ['cat_senior', 'cat_adult', 'cat_young']
+  PASS  rabbit/holland lop/2y -> expected rabbit, got ['rabbit', 'general']
+  PASS  other/axolotl/2y -> expected general, got ['general']
+  ... (12 profiles in total)
+  => 12/12 = 100%
+
+Schema pass rate (live model, 3 run(s) per profile)
+  SKIPPED: set GEMINI_API_KEY to run this part.
+```
+
+With `GEMINI_API_KEY` set, the second block runs the live model 3 times for each of 6 profiles and reports how many runs produced valid output.
+
+### 3. Guardrail demo (input, output, and pass/fail)
+
+```bash
+python demo_guardrails.py  # saved to logs/guardrail_demo.txt
+```
+
+The script runs the real pipeline against a **hand-written model reply** containing 2 good tasks and 5 bad ones, plus two failure modes. The reply is scripted, not AI-generated, so the guardrail behavior is identical on every run.
+
+```
+INPUT pet: Biscuit dog labrador 0.5y | existing tasks: ['Evening play']
+RETRIEVED guides: ['dog_young', 'dog_adult', 'dog_senior']
+MODEL returned 7 tasks -> 2 accepted, 5 rejected
+  ACCEPTED  07:00  Morning meal (15 min, daily, high) source=dog_young
+  ACCEPTED  09:30  Potty break (10 min, daily, high) source=dog_young
+
+INPUT: model replies with non-JSON garbage on every attempt
+  -> The AI returned output we couldn't use. Try again.
+
+INPUT: the model API is down
+  -> The AI service is unavailable (network down). Your schedule is unchanged. See pawpal.log.
+```
+
+### 4. Reliability and guardrail results
+
+| scenario (input) | expected behavior | observed |
+|---|---|---|
+| Valid task citing a retrieved guide | accepted | accepted (Morning meal, Potty break) |
+| Task already on the pet's schedule ("Evening play") | rejected as duplicate | rejected |
+| Impossible start time `25:99` | rejected | rejected |
+| Duration `0` | rejected | rejected |
+| Source guide that was never retrieved (`invented_guide`) | rejected (not grounded) | rejected |
+| Invalid frequency (`hourly`) | rejected | rejected |
+| Model returns non-JSON on every attempt | one retry, then friendly error, no crash | friendly error, no crash |
+| Model API unavailable | friendly error, schedule unchanged, no crash | friendly error, no crash |
+| No API key configured | AI feature hidden, rest of app works | verified by `test_feature_disabled_without_api_key` |
+| Total | | 2 accepted / 5 rejected of 7; 36 / 36 tests pass; retrieval 12 / 12 |
 
 ## Design decisions and trade-offs
 

@@ -1,0 +1,18 @@
+Retrieval hit rate (top-3)
+  PASS  dog/labrador/0.5y -> expected dog_young, got ['dog_young', 'dog_adult', 'dog_senior']
+  PASS  dog/poodle/4y -> expected dog_adult, got ['dog_adult', 'dog_senior', 'dog_young']
+  PASS  dog/beagle/11y -> expected dog_senior, got ['dog_senior', 'dog_adult', 'dog_young']
+  PASS  cat/tabby/0.3y -> expected cat_young, got ['cat_young', 'cat_adult', 'cat_senior']
+  PASS  cat/persian/5y -> expected cat_adult, got ['cat_adult', 'cat_senior', 'cat_young']
+  PASS  cat/siamese/14y -> expected cat_senior, got ['cat_senior', 'cat_adult', 'cat_young']
+  PASS  rabbit/holland lop/2y -> expected rabbit, got ['rabbit', 'general']
+  PASS  small mammal/guinea pig/1y -> expected small_mammal, got ['small_mammal', 'general']
+  PASS  bird/cockatiel/3y -> expected bird, got ['bird', 'general']
+  PASS  fish/betta/1y -> expected fish, got ['fish', 'general']
+  PASS  reptile/bearded dragon/2y -> expected reptile, got ['reptile', 'general']
+  PASS  other/axolotl/2y -> expected general, got ['general']
+  => 12/12 = 100%
+
+Schema pass rate (live model, 3 run(s) per profile)
+  SKIPPED: set GEMINI_API_KEY to run this part.
+
