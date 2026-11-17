@@ -1,246 +1,181 @@
-# PawPal+ (Module 2 Project)
+# 🐾 PetCarePro
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+**A pet-care planner that drafts a care routine from vetted guides and lets you approve it before it touches your schedule.**
 
-## Scenario
+PetCarePro extends my Module 2 project, **PawPal+**. PawPal+ was a Streamlit app where a busy pet owner enters their pets and care tasks (walks, feedings, meds, grooming). It then builds a daily plan: it sorts tasks by time and priority, warns about overlaps, repeats daily and weekly tasks, and fits everything into the owner's available minutes with a plain-language explanation. It was entirely rule-based, so the owner still had to know *what* a pet needs. PetCarePro adds an AI layer that answers that question.
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+## What it does and why it matters
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+New pet owners often don't know what a 6-month-old lab puppy needs compared with a 12-year-old cat, so their schedule is only as good as their guesses. PetCarePro fixes that with **Retrieval-Augmented Generation (RAG)**:
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+1. You enter a pet's species, breed and age.
+2. The app **retrieves** the relevant care guides from a local knowledge base.
+3. Gemini **turns those guides into concrete tasks** (name, start time, duration, priority, which guide it came from).
+4. Guardrails validate the output, and **you approve each task** before it is added.
+5. The original scheduler then handles conflicts, priorities and the daily plan.
 
-## What you will build
+The AI is not a chatbot bolted on the side. Its output becomes real `Task` objects that flow through the same conflict detection and scheduling as hand-entered tasks.
 
-Your final app should:
+## Architecture overview
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+The full diagram is in [`diagrams/system_diagram.mmd`](diagrams/system_diagram.mmd) (Mermaid). In short:
 
-## ✨ Features
-
-- **Multi-pet task tracking** — an owner can have several pets, each with its own tasks (description, start time, duration, priority, repeat frequency). The scheduler reads every pet's tasks at once.
-- **Sorting by time** — tasks are ordered chronologically (date and time), with higher priority first when two tasks start together.
-- **Filtering** — view tasks by pet (case-insensitive), by status (pending or completed), or both.
-- **Priority-based daily schedule** — pending tasks for the chosen day are taken highest priority first (then earlier start, then shorter duration) until the owner's available minutes run out. Anything that doesn't fit is skipped and listed.
-- **Conflict warnings** — every pair of overlapping pending tasks is flagged, whether for the same pet or different pets. Back-to-back tasks are not conflicts. Conflicts are warned about, never silently resolved or raised as errors.
-- **Daily and weekly recurrence** — completing a daily or weekly task automatically creates the next occurrence (+1 day or +1 week, same time of day). Completing a task twice never creates a duplicate.
-- **Explained plans** — every scheduled or skipped task comes with a plain-language reason.
-- **Input validation** — durations must be positive and available time can't be negative.
-
-## Getting started
-
-### Setup
-
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+```
+Owner enters pet profile (species, breed, age)
+        │
+        ▼
+ Retriever (retriever.py) ──reads──▶ knowledge/*.md  (12 care guides)
+        │ top-3 guides
+        ▼
+ AI agent (ai_agent.py): prompt = profile + guides ──▶ Gemini ──▶ JSON tasks
+        │
+        ▼
+ Guardrails: schema check · must cite a retrieved guide · de-duplicate · retry once · log
+        │ valid suggestions
+        ▼
+ HUMAN REVIEW (Streamlit checklist: approve / reject each task)
+        │ approved tasks
+        ▼
+ Scheduler (pawpal_system.py): sort · filter · conflict detection · daily plan
 ```
 
-### Enable AI task suggestions (optional)
+| Component | File | Role |
+|---|---|---|
+| Domain model + scheduler | `pawpal_system.py` | Owner, Pet, Task, Scheduler (carried over from PawPal+) |
+| Retriever | `retriever.py` | Keyword scoring of guides by species, life stage and breed |
+| Knowledge base | `knowledge/` | 12 short markdown care guides |
+| AI agent | `ai_agent.py` | Prompt building, Gemini call, validation, retry, logging |
+| UI | `app.py` | Streamlit app, including the human-review step |
+| Evaluator | `evaluate.py` | Retrieval hit rate and live schema pass rate |
+| Tests | `tests/` | 36 pytest tests (22 scheduler, 14 AI) |
 
-The core planner works without any key. To turn on the AI feature, get a Gemini API key and set it before launching:
+**Where humans and tests check the AI:** the owner reviews every suggestion before it is saved; pytest covers the scheduler and the guardrails; the evaluator measures retrieval and output validity.
+
+## Setup instructions
+
+Requires Python 3.10+.
 
 ```bash
-export GEMINI_API_KEY="your-key"      # Windows PowerShell: $env:GEMINI_API_KEY="your-key"
-export GEMINI_MODEL="gemini-3.8-flash"  # optional override
+git clone <this-repo-url> && cd applied-ai-system-final
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run app.py               # core planner; AI button is hidden without a key
+```
+
+To enable the AI feature, get a Gemini API key from [Google AI Studio](https://aistudio.google.com/) and set it before launching:
+
+```bash
+export GEMINI_API_KEY="your-key"          # PowerShell: $env:GEMINI_API_KEY="your-key"
+export GEMINI_MODEL="gemini-3.8-flash"    # optional; this is the default
 streamlit run app.py
 ```
 
-Without a key, the app shows a notice and hides the AI button; everything else keeps working.
-
-## 🤖 AI feature: RAG task suggestions
-
-System diagram: `diagrams/system_diagram.mmd`.
-
-1. **Retrieve**: `retriever.py` keyword-matches the pet's species, life stage (from age), and breed against the guides in `knowledge/`.
-2. **Generate**: `ai_agent.py` puts the pet profile and the retrieved guides into a Gemini prompt and asks for JSON tasks. The answer is built from the retrieved text, and each task cites its source guide.
-3. **Guardrails**: output is schema-validated (time, duration, enums), must cite a retrieved guide, and is de-duplicated against the pet's existing tasks. Bad items are dropped and logged, bad JSON is retried once, and API failures return a friendly error instead of crashing.
-4. **Human review**: suggestions appear as a checklist with reasons and sources. Nothing is added to the schedule until the owner approves, and the existing conflict detection then runs on the result.
-5. **Logging**: everything goes to the console and `pawpal.log`.
-
-Measure it with `python evaluate.py`: the retrieval hit rate over labeled pet profiles runs offline, and the schema pass rate over live model runs runs when `GEMINI_API_KEY` is set. Automated tests live in `tests/test_ai.py` (no network needed).
-
-### Suggested workflow
-
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.  The final diagram is in `diagrams/uml_final.mmd`.
-
-## 🖥️ Sample Output
-
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
-
-```
-Today's Schedule for Jackson (90 min available)
-==================================================
-07:30-08:00  Morning walk (Rex)
-08:00-08:15  Breakfast (Mia)
-18:30-18:50  Play session (Mia)
-
-Reasoning
---------------------------------------------------
-Scheduled Morning walk (Rex): HIGH priority, 30 min, 60 min left.
-Scheduled Breakfast (Mia): HIGH priority, 15 min, 45 min left.
-Scheduled Play session (Mia): MEDIUM priority, 20 min, 25 min left.
-Skipped Grooming (Rex): needs 45 min, only 25 left.
-```
-
-## Implementation summary
-
-The backend logic lives in `pawpal_system.py`, is demonstrated from the terminal with `main.py`, and is used by the Streamlit UI in `app.py`.
-
-There are four main classes:
-
-- **Task**: one activity, like a walk or a feeding. It stores a description, start time, duration, how often it repeats (once, daily, weekly), a priority, and whether it's done. When you complete a daily or weekly task, `mark_complete()` hands back the next one.
-- **Pet**: a name and breed plus its own list of tasks.
-- **Owner**: has a list of pets and how many minutes they have free in a day. `get_all_tasks()` collects every pet's tasks into one list.
-- **Scheduler**: the part that makes the plan. It gets tasks through `owner.get_all_tasks()` instead of looking at one pet, so it can plan for all of them at once. It sorts and filters tasks, flags overlapping times, and builds the day's schedule by taking the highest priority tasks first until the owner runs out of time. Anything that doesn't fit gets skipped, and it keeps a note of why.
-
-The Owner has Pets, the Pets have Tasks, and the Scheduler reads all of those tasks through the Owner and decides what fits into the day.
-
-## Smarter Scheduling
-
-Algorithms added in `pawpal_system.py`, demonstrated by `main.py`:
-
-- **Sorting by time** — `Scheduler.sort_by_time()` orders tasks chronologically with `sorted(key=lambda t: (t.time, -t.priority))`, so higher priority wins ties.
-- **Filtering** — `Scheduler.filter_tasks(pet_name=None, completed=None)` filters by pet (case-insensitive) and/or completion status; both filters combine. `Scheduler.pending_tasks()` is a shortcut for not-completed tasks.
-- **Conflict detection** — `Scheduler.find_conflicts()` sweeps the time-sorted pending tasks and returns every overlapping pair (same pet or different pets), stopping early once no later task can overlap. `Scheduler.conflict_warnings()` turns those pairs into warning strings instead of raising, and `generate_schedule()` appends them to the reasoning. Overlaps are warned about, not automatically resolved.
-- **Recurring tasks** — `Task.mark_complete()` returns the next daily or weekly occurrence, due at max(task date, today) plus a `timedelta` of 1 day or 1 week, keeping the time of day. `Scheduler.complete_task()` adds it to the same pet. Completing an already-completed task creates no duplicate.
-
-## 🧪 Testing PawPal+
+Other commands:
 
 ```bash
-python -m pytest
+python -m pytest        # run all tests (no API key or network needed)
+python evaluate.py      # retrieval hit rate; also live schema pass rate if a key is set
+python main.py          # terminal demo of the scheduler
 ```
 
-The suite in `tests/test_pawpal.py` (22 tests) covers:
+Logs go to the console and `pawpal.log`.
 
-- **Sorting** — chronological order across pets, priority tie-breaks, multi-day ordering, and an empty task list.
-- **Recurrence** — daily tasks create a next-day task, weekly tasks recur a week later, one-off tasks don't recur, completing twice creates no duplicate, late completion recurs from today, and `Scheduler.complete_task` adds the new task to the right pet.
-- **Conflict detection** — same-time tasks (same pet and different pets), partial overlaps, back-to-back tasks (not a conflict), and completed tasks being ignored.
-- **Edge cases** — pets with no tasks, invalid durations, filtering by pet and status, and tasks skipped when they don't fit the available time.
+## Sample interactions
 
-Sample test output:
+**1. Live Gemini suggestion** *(a 6-month-old labrador)*
 
-```
-============================= test session starts ==============================
-platform darwin -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
-rootdir: /Users/jacksonaltman/Desktop/ai110-module2show-pawpal-starter
-collected 22 items
+> ⚠️ Replace this block with output from your own run (it is not filled in because I can't call the API from here). Run the app with a key, add a dog (labrador, 0.5 years), click **Suggest tasks**, and paste the checklist here.
 
-tests/test_pawpal.py ......................                              [100%]
+**2. Retrieval picks guides by species and life stage** *(real output, no key needed)*
 
-============================== 22 passed in 0.01s ==============================
-```
+| Input pet | Guides retrieved (in order) |
+|---|---|
+| dog, labrador, 0.5 years | `dog_young`, `dog_adult`, `dog_senior` |
+| cat, persian, 12 years | `cat_senior`, `cat_adult`, `cat_young` |
+| axolotl, axolotl, 2 years (no guide exists) | `general` |
 
-**Confidence Level: ⭐⭐⭐⭐ (4/5)** — All 22 tests pass and cover the main behaviors and edge cases. However, the tests don't cover the Streamlit UI (`app.py`) or tasks that span midnight, and `Scheduler.complete_task` depends on the real current date.
-
-## 📸 Demo Walkthrough
-
-### Running the app
-
-```bash
-streamlit run app.py   # web UI
-python main.py         # terminal demo of the same scheduler
-```
-
-### What you can do in the UI
-
-- **Owner** — set your name and how many minutes you have available today.
-- **Pets** — add pets (name and breed); a table shows each pet and its task count.
-- **Tasks** — add a task for a pet with a start time, duration, repeat frequency (once, daily, weekly) and priority.
-- **All tasks** — see every task sorted by time, and filter by pet and/or status.
-- **Mark complete** — finish a task; daily and weekly tasks automatically get a next occurrence.
-- **Generate schedule** — build today's plan, with skipped tasks and the reasoning behind it.
-
-### Example workflow
-
-1. Set the owner to "Jordan" with 90 minutes available.
-2. Add two pets, Rex (Lab) and Mia (Tabby).
-3. Add "Morning walk" (07:30, 30 min, high, daily) for Rex and "Vet call" (07:30, 20 min, medium) for Rex.
-4. A yellow conflict warning appears immediately: the walk and the vet call overlap, with a tip to move the call to 08:00 or later.
-5. Add a few more tasks (breakfast and a play session for Mia, grooming for Rex). The task table stays sorted by time, and the pet filter narrows it to one animal.
-6. Mark "Morning walk" complete. A message says its next daily occurrence is scheduled for tomorrow at 07:30.
-7. Click **Generate schedule** to see today's plan, a "used X of 90 minutes" summary, any skipped tasks, and the "Why this plan?" explanation.
-
-### Scheduler behaviors shown
-
-- **Sorting** — tasks added out of order are displayed chronologically.
-- **Filtering** — by pet and by completed or pending.
-- **Conflict warnings** — overlapping tasks are flagged for the same pet and across pets, before and after generating a plan.
-- **Recurrence** — completing a recurring task queues the next one.
-- **Skipping** — a task that no longer fits in the available time is skipped and explained.
-
-### Sample CLI output (`python main.py`)
+For the puppy, the prompt sent to Gemini contains the guide text itself, so the model must work from it:
 
 ```
+PET PROFILE
+- name: Biscuit
+- species: dog
+- breed: labrador
+- age: 0.5 years
+- tasks already scheduled: none
 
-As added (unsorted)
---------------------------------------------------
-[ ] Mon 17:00  Grooming (Rex)
-[ ] Mon 07:30  Morning walk (Rex)
-[ ] Mon 07:30  Vet call (Rex)
-[ ] Mon 18:40  Training (Rex)
-[ ] Mon 18:30  Play session (Mia)
-[x] Mon 08:00  Breakfast (Mia)
-[ ] Tue 08:00  Breakfast (Mia)
-
-Sorted by time
---------------------------------------------------
-[ ] Mon 07:30  Morning walk (Rex)
-[ ] Mon 07:30  Vet call (Rex)
-[x] Mon 08:00  Breakfast (Mia)
-[ ] Mon 17:00  Grooming (Rex)
-[ ] Mon 18:30  Play session (Mia)
-[ ] Mon 18:40  Training (Rex)
-[ ] Tue 08:00  Breakfast (Mia)
-
-Rex's tasks
---------------------------------------------------
-[ ] Mon 17:00  Grooming (Rex)
-[ ] Mon 07:30  Morning walk (Rex)
-[ ] Mon 07:30  Vet call (Rex)
-[ ] Mon 18:40  Training (Rex)
-
-Completed tasks
---------------------------------------------------
-[x] Mon 08:00  Breakfast (Mia)
-
-Pending tasks for Mia
---------------------------------------------------
-[ ] Mon 18:30  Play session (Mia)
-[ ] Tue 08:00  Breakfast (Mia)
-
-Conflict check (all pending tasks)
---------------------------------------------------
-Warning (same pet): Morning walk (Rex, 07:30-08:00) overlaps Vet call (Rex, 07:30-07:50).
-Warning (different pets): Play session (Mia, 18:30-18:50) overlaps Training (Rex, 18:40-19:00).
-
-Today's Schedule for Jackson (90 min available)
-==================================================
-07:30-08:00  Morning walk (Rex)
-07:30-07:50  Vet call (Rex)
-18:30-18:50  Play session (Mia)
-18:40-19:00  Training (Rex)
-
-Reasoning
---------------------------------------------------
-Scheduled Morning walk (Rex): HIGH priority, 30 min, 60 min left.
-Scheduled Vet call (Rex): MEDIUM priority, 20 min, 40 min left.
-Scheduled Play session (Mia): MEDIUM priority, 20 min, 20 min left.
-Skipped Grooming (Rex): needs 45 min, only 20 left.
-Scheduled Training (Rex): LOW priority, 20 min, 0 min left.
-Warning (same pet): Morning walk (Rex, 07:30-08:00) overlaps Vet call (Rex, 07:30-07:50).
-Warning (different pets): Play session (Mia, 18:30-18:50) overlaps Training (Rex, 18:40-19:00).
+REFERENCE DOCS (use ONLY these as your source of care guidance)
+[doc id: dog_young] Puppy care basics
+- Feed 3 meals a day (about 15 min each), spaced roughly 5-6 hours apart.
+- Potty break after every meal, nap, and play session; at minimum every 2 hours (10 min).
+...
 ```
+
+**3. Guardrails reject unsafe model output** *(real output from the validator)*
+
+Given a model reply with three tasks, one valid, one with start time `25:99`, and one citing a guide that was never retrieved (`invented_doc`):
+
+```
+accepted: ['Morning walk']    rejected: 2
+```
+
+With no API key configured the app does not crash: the AI section shows *"AI task suggestions are off. Set the GEMINI_API_KEY environment variable…"* and the rest of the planner works normally. If the API fails, the UI shows the reason (for example `404 NOT_FOUND`) and the schedule is left unchanged.
+
+**4. Evaluator** *(real output)*
+
+```
+Retrieval hit rate (top-3)
+  PASS  dog/labrador/0.5y -> expected dog_young, got ['dog_young', 'dog_adult', 'dog_senior']
+  ...
+  PASS  other/axolotl/2y -> expected general, got ['general']
+  => 12/12 = 100%
+```
+
+## Design decisions and trade-offs
+
+- **RAG over a plain prompt.** Grounding the model in a small set of known guides keeps its advice consistent and traceable: every suggested task cites a guide. The trade-off is that it can only recommend what the knowledge base covers.
+- **Keyword retrieval, not embeddings.** Deterministic, zero extra dependencies, easy to test and explain. The cost is that it misses synonyms (it won't connect "pup" to "puppy"), which the age-to-life-stage mapping partly compensates for.
+- **Human in the loop.** Nothing is saved until the owner approves it. This costs one extra click but means a bad suggestion can never silently change a care schedule.
+- **Guardrails over trust.** Output is schema-validated, must cite a retrieved guide, and is de-duplicated. Invalid items are dropped and logged rather than fixed up, and bad JSON gets exactly one retry to bound cost and latency.
+- **AI is optional.** The deterministic scheduler is unchanged and works without a key, so the AI layer can fail without taking the app down. The model call is injectable, which is what lets the tests run offline.
+- **Scheduler kept rule-based.** Priorities, conflicts and time budgets are exact problems. Using code for them is more reliable than asking a model.
+
+## Testing summary
+
+36 pytest tests pass, and the AI tests need no network because the model call is faked.
+
+- **Scheduler (22 tests, from PawPal+):** sorting, recurrence, conflict detection, edge cases.
+- **AI layer (14 tests):** retrieval ranking and determinism, unknown-species fallback, schema validation, rejection of bad times, durations, enums and ungrounded sources, de-duplication, retry on bad output, no crash on API failure, prompt contains the retrieved guides, feature off without a key.
+- **Evaluator:** retrieval hit rate is 12/12. The live schema pass rate is run with `python evaluate.py` once a key is set.
+
+| check | measured by | result |
+|---|---|---|
+| Scheduler unit tests | `tests/test_pawpal.py` | 22 / 22 pass |
+| AI-layer unit tests (faked model, no network) | `tests/test_ai.py` | 14 / 14 pass |
+| Retrieval hit rate (top-3) | `python evaluate.py`, 12 labeled profiles | 12 / 12 = 100% |
+| Guardrails reject bad model output | `test_parse_rejects_bad_items_but_keeps_good_ones` | 5 / 5 rejected, 1 good kept |
+| Schema pass rate on live Gemini output | `python evaluate.py --runs 3` | not yet run (needs a key) |
+
+`python evaluate.py` writes the full per-case table to [`evaluation_results.md`](evaluation_results.md). The per-test log and a deeper discussion are in [`model_card.md`](model_card.md).
+
+**What worked:** injecting the model call made the whole agent testable without a network. The evaluator also caught a real bug (below).
+
+**What didn't, and what I learned:**
+- The retrieval evaluator's output showed a rabbit's top-3 guides included `cat_adult` and `dog_adult`: the life-stage bonus was applied even when the species didn't match. Fixed by scoring life stage only within the matching species.
+- The first live call failed with `404 NOT_FOUND` because the default Gemini model had been retired for new users. The error was swallowed into a generic message, so I changed the UI to show the API's reason. Model IDs are configuration, not constants: it is now overridable with `GEMINI_MODEL`.
+- Not covered: the Streamlit UI itself, tasks spanning midnight, and the quality (not just validity) of live model output, which is judged by the human reviewer.
+
+## Reflection
+
+This project taught me that most of the work in an AI feature is everything around the model call: deciding what the model is allowed to see, checking what it returns, and keeping a human in control of the result. The model was the easiest part to swap and the hardest to trust, so the reliable pieces (retrieval, validation, scheduling) did the heavy lifting. Building the evaluator early also paid off, because measuring retrieval exposed a bug that looked fine by eye. My fuller responsible-AI reflection is in `model_card.md`.
+
+## Original PawPal+ features (still included)
+
+- **Multi-pet task tracking**, **sorting by time**, **filtering** by pet and status.
+- **Priority-based daily schedule** that skips what doesn't fit and explains why.
+- **Conflict warnings** for every overlapping pair, never silently resolved.
+- **Daily and weekly recurrence**: completing a task creates the next occurrence, with no duplicates.
+- **Input validation**: durations must be positive and available time can't be negative.
+
+See `pawpal_system.py` for the implementation.

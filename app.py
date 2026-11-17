@@ -93,7 +93,10 @@ else:
 # --- AI suggestions: retrieve care docs -> Gemini drafts tasks -> the human approves ---
 if owner.pets and ai_agent.is_configured():
     st.markdown("#### ✨ AI task suggestions")
-    st.caption("Drafts a routine from our pet-care guides. Nothing is added until you approve it.")
+    st.caption(
+        "Drafts a routine from our pet-care guides. Nothing is added until you approve it. "
+        "This is general guidance, not veterinary advice."
+    )
     ai_pet = st.selectbox("Suggest tasks for", [p.name for p in owner.pets], key="ai_pet")
     if st.button("Suggest tasks"):
         with st.spinner("Looking up care guidance and drafting tasks..."):
