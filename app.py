@@ -2,8 +2,12 @@ from datetime import date, datetime
 
 import streamlit as st
 
+import ai_agent
 from pawpal_system import Frequency, Owner, Pet, Priority, Scheduler, Task
 
+SPECIES = ["dog", "cat", "rabbit", "small mammal", "bird", "fish", "reptile", "other"]
+
+ai_agent.setup_logging()
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 # Streamlit reruns this whole script on every click, so the Owner has to live in
@@ -31,16 +35,28 @@ with st.form("owner_form"):
 st.subheader("Pets")
 with st.form("pet_form", clear_on_submit=True):
     pet_name = st.text_input("Pet name")
-    breed = st.text_input("Breed / species")
+    breed = st.text_input("Breed")
+    sp1, sp2 = st.columns(2)
+    with sp1:
+        species = st.selectbox("Species", SPECIES)
+    with sp2:
+        age = st.number_input("Age (years)", min_value=0.0, max_value=40.0, value=3.0, step=0.5)
     if st.form_submit_button("Add pet"):
         if not pet_name.strip():
             st.error("Please enter a pet name.")
         else:
-            owner.add_pet(Pet(name=pet_name.strip(), breed=breed.strip() or "unknown"))
+            owner.add_pet(
+                Pet(name=pet_name.strip(), breed=breed.strip() or "unknown", species=species, age_years=float(age))
+            )
             st.success(f"Added {pet_name.strip()}!")
 
 if owner.pets:
-    st.table([{"Name": p.name, "Breed": p.breed, "Tasks": len(p.tasks)} for p in owner.pets])
+    st.table(
+        [
+            {"Name": p.name, "Species": p.species, "Breed": p.breed, "Age": p.age_years, "Tasks": len(p.tasks)}
+            for p in owner.pets
+        ]
+    )
 else:
     st.info("No pets yet. Add one above.")
 
@@ -73,6 +89,46 @@ else:
                     )
                 )
                 st.success(f"Added '{description.strip()}' for {pet_choice}.")
+
+# --- AI suggestions: retrieve care docs -> Gemini drafts tasks -> the human approves ---
+if owner.pets and ai_agent.is_configured():
+    st.markdown("#### ✨ AI task suggestions")
+    st.caption("Drafts a routine from our pet-care guides. Nothing is added until you approve it.")
+    ai_pet = st.selectbox("Suggest tasks for", [p.name for p in owner.pets], key="ai_pet")
+    if st.button("Suggest tasks"):
+        with st.spinner("Looking up care guidance and drafting tasks..."):
+            st.session_state.ai_result = (ai_pet, ai_agent.suggest_tasks(owner.get_pet(ai_pet)))
+
+    if "ai_result" in st.session_state:
+        result_pet, result = st.session_state.ai_result
+        pet_obj = owner.get_pet(result_pet)
+        if pet_obj is None:  # pet was removed since the suggestions were made
+            del st.session_state.ai_result
+        else:
+            if result.docs:
+                with st.expander("Guides used (retrieved)"):
+                    for d in result.docs:
+                        st.markdown(f"**{d.title}** (`{d.id}`)")
+            if result.error:
+                st.error(result.error)
+            else:
+                if result.rejected:
+                    st.caption(f"{result.rejected} invalid suggestion(s) were filtered out automatically.")
+                st.write(f"Review suggestions for **{result_pet}** and tick the ones you want:")
+                picks = []
+                for i, s in enumerate(result.suggestions):
+                    label = f"{s.start} · {s.description} ({s.duration} min, {s.frequency.value}, {s.priority.name.lower()})"
+                    if st.checkbox(label, value=True, key=f"ai_pick_{i}"):
+                        picks.append(s)
+                    st.caption(f"Why: {s.reason} (source: {s.source})")
+                if st.button("Add selected tasks"):
+                    for s in picks:
+                        pet_obj.add_task(s.to_task())
+                    st.session_state.flash = f"Added {len(picks)} AI-suggested task(s) to {result_pet}."
+                    del st.session_state.ai_result
+                    st.rerun()
+elif owner.pets:
+    st.info("✨ AI task suggestions are off. Set the GEMINI_API_KEY environment variable and restart to enable them.")
 
 scheduler = Scheduler(owner)
 
